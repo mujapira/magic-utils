@@ -10,34 +10,11 @@ import {
     DialogTitle,
     DialogTrigger,
 } from "@/components/ui/dialog"
-import {
-    Card,
-    CardContent,
-    CardDescription,
-    CardFooter,
-    CardHeader,
-    CardTitle,
-} from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { motion } from "motion/react"
-import { useEffect, useState } from "react"
-import { ICard } from "../../../interfaces"
-import { LoadingCards } from "../../loading-cards"
+import { Fragment, useEffect, useState } from "react"
 import { Textarea } from "@/components/ui/textarea"
-import { CardComponent } from "../../card-component"
-import {
-    Sidebar,
-    SidebarContent,
-    SidebarFooter,
-    SidebarGroup,
-    SidebarGroupContent,
-    SidebarGroupLabel,
-    SidebarHeader,
-    SidebarMenu,
-    SidebarMenuButton,
-    SidebarMenuItem,
-} from "@/components/ui/sidebar"
 import {
     Tabs,
     TabsContent,
@@ -55,15 +32,25 @@ import {
     DrawerTitle,
     DrawerTrigger,
 } from "@/components/ui/drawer"
+import { ICard } from "@/app/interfaces"
+import { LoadingCards } from "../loading-cards"
+import { CardComponent } from "../card-component"
+import { set } from "react-hook-form"
+import { useToast } from "@/hooks/use-toast"
+import { ToastAction } from "@/components/ui/toast"
+import { Progress } from "@/components/ui/progress"
 
 const revalidate = 60 * 60 * 24
 
 export function DeckBuilderComponent() {
+    const { toast, } = useToast()
     const [data, setData] = useState<ICard[]>([])
     const [loadingData, setLoadingData] = useState(false)
     const [cardsToSearch, setCardsToSearch] = useState<string>("")
     const [open, setOpen] = useState(false)
+
     const [deckRegisterInfo, setDeckRegisterInfo] = useState({ name: "", description: "" })
+
     const handleGetDeckCards = async () => {
         setLoadingData(true);
         const cards = cardsToSearch
@@ -101,6 +88,124 @@ export function DeckBuilderComponent() {
 
     const handleSaveDeck = async () => {
     }
+
+    const [loadingBulkData, setLoadingBulkData] = useState(true);
+    const [progress, setProgress] = useState(0);
+
+    const checkCacheStatus = async () => {
+        try {
+            const response = await fetch("/api/bulk-data/check-cache");
+
+            if (response.ok) {
+                const data = await response.json();
+                return data.status === "cached";
+            } else {
+                console.error("Erro ao verificar o cache:", response.statusText);
+
+                return false;
+            }
+        } catch (err) {
+            console.error("Erro de rede ao verificar o cache:", err);
+            return false;
+        }
+    };
+
+    const handleFetchBulkData = async () => {
+        const isCached = await checkCacheStatus();
+
+        if (isCached) {
+            setLoadingBulkData(false);
+            return;
+        }
+
+        const eventSource = new EventSource("/api/bulk-data/get-bulk-data");
+
+        const { id, update: updateToast, dismiss } = toast({
+            title: "Syncing",
+            description:
+                <div className="flex flex-col gap-1">
+                    <span>We are getting the latest MTG data 🧙‍♂️</span>
+                    <Progress value={0} max={100} className="w-80" />
+                </div>
+            ,
+            duration: 40000,
+        });
+
+        eventSource.onmessage = (event) => {
+            const message = event.data;
+
+            if (message.includes("%")) {
+                const progress = parseInt(message.replace("%", ""));
+                setProgress(progress);
+
+                updateToast({
+                    id,
+                    title: "Syncing",
+                    description:
+                        <div className="flex flex-col gap-1">
+                            <span>We are getting the latest MTG data 🧙‍♂️</span>
+                            <Progress value={progress} max={100} className="w-80" />
+                        </div>
+                    ,
+                });
+            } else if (message === "Download completed!") {
+                console.log("Download completed!");
+                setProgress(100);
+                eventSource.close();
+                setLoadingBulkData(false);
+
+                updateToast({
+                    id,
+                    title: "Sync completed!",
+                    description:
+                        <div className="flex flex-col gap-1">
+                            <span>Start building your deck 🎉🎉</span>
+                            <Progress value={100} max={100} className="w-80" />
+                        </div>
+                    ,
+                    duration: 2000,
+                });
+
+                setTimeout(() => {
+                    dismiss();
+                }, 2000);
+            } else if (message.startsWith("Error")) {
+                console.error(message);
+                eventSource.close();
+                setLoadingBulkData(false);
+
+                updateToast({
+                    id,
+                    title: "Oh no 😢",
+                    description: "An error occurred while syncing data.",
+                    variant: "destructive",
+                    duration: 2000,
+                });
+            } else {
+                console.log(message);
+            }
+        };
+
+        eventSource.onerror = () => {
+            console.error("Error in SSE connection.");
+            setLoadingBulkData(false);
+            eventSource.close();
+
+            updateToast({
+                id,
+                title: "Connection Error",
+                description: "The connection to the server was interrupted.",
+                variant: "destructive",
+                duration: 5000,
+            });
+        };
+
+        return eventSource;
+    };
+
+    useEffect(() => {
+        handleFetchBulkData();
+    }, []);
 
     return (
         <motion.div

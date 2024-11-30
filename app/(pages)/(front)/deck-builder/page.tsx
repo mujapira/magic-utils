@@ -1,4 +1,4 @@
-import { DeckBuilderComponent } from "@/app/components/layout/deck-builder/deck-builder";
+import { DeckBuilderComponent } from "@/app/components/deck-builder/deck-builder";
 import { Metadata } from "next";
 
 

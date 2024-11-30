@@ -8,7 +8,7 @@ export function HomeComponent() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ duration: 1 }}
-            className="flex items-center flex-col h-100 justify-center pb-40">
+            className="flex items-center flex-col h-100 w-full justify-center pb-40">
             <span className="font-bold text-2xl">
                 Welcome to Magic Utils
             </span>
