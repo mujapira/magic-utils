@@ -2,11 +2,14 @@ import type { Metadata } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
 import { ThemeProvider } from "@/components/ui/theme-provider";
-import { AppSidebar } from "./components/layout/sidebar";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { Header } from "./components/layout/header";
 import { Footer } from "./components/layout/footer";
 import { Inter, Roboto } from 'next/font/google'
+import { ToastProvider } from "@radix-ui/react-toast";
+import { Toast } from "@/components/ui/toast";
+import { Toaster } from "@/components/ui/toaster";
+import { LeftSidebar } from "./components/layout/left-sidebar";
 
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",
@@ -41,7 +44,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <body
         className={`${inter.className} ${roboto.className} antialiased`}
       >
@@ -51,18 +54,21 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
-          <SidebarProvider>
-            <AppSidebar />
-            <div className="flex flex-col w-full items-center justify-between
+          <ToastProvider>
+            <SidebarProvider>
+              <LeftSidebar />
+              <div className="flex flex-col w-full items-center justify-between
               min-h-screen"
-            >
-              <Header />
-              <main className="flex flex-1">
-                {children}
-              </main>
-              <Footer />
-            </div>
-          </SidebarProvider>
+              >
+                <Header />
+                <main className="flex flex-1 max-w-screen-2xl w-full px-2">
+                  <Toaster />
+                  {children}
+                </main>
+                <Footer />
+              </div>
+            </SidebarProvider>
+          </ToastProvider>
         </ThemeProvider>
       </body>
     </html>

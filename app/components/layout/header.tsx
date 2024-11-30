@@ -1,9 +1,7 @@
-import { SidebarTrigger } from "@/components/ui/sidebar";
+import { HeaderComponent } from "../header-component";
 
 export function Header() {
     return (
-        <header className="w-full p-1">
-            <SidebarTrigger />
-        </header>
+        <HeaderComponent />
     )
 }
