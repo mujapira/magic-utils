@@ -37,6 +37,7 @@ import { CardComponent } from "../card-component"
 import { useToast } from "@/hooks/use-toast"
 import { Progress } from "@/components/ui/progress"
 import { debounce } from "lodash";
+import { SaarchCardComponent } from "../search-card-component"
 
 interface SearchResponse {
     results: ICard[];
@@ -396,7 +397,7 @@ export function DeckBuilderComponent() {
                                 <div className="flex flex-col">
                                     {cards.map((card) => (
                                         <div key={card.id} className="p-4 border rounded shadow-sm">
-                                            <h3 className="font-bold">{card.name}</h3>
+                                            <SaarchCardComponent {...card} />
                                         </div>
                                     ))}
                                 </div>

@@ -25,6 +25,8 @@ export const POST = async (req: Request) => {
             const name = match[2]?.trim();
 
             const cardData = allCards.find((card) =>
+                card.name.toLowerCase() === name.toLowerCase()
+            ) || allCards.find((card) =>
                 card.name.toLowerCase().includes(name.toLowerCase())
             );
 
@@ -37,7 +39,7 @@ export const POST = async (req: Request) => {
 
         return NextResponse.json(result, { status: 200 });
     } catch (error) {
-        console.error("Erro ao buscar cartas:", error);
+        console.error("Error:", error);
         return NextResponse.json({ error: "Erro ao processar a requisição" }, { status: 500 });
     }
 };
