@@ -13,7 +13,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { motion } from "motion/react"
-import { Fragment, useEffect, useState } from "react"
+import { useEffect, useState } from "react"
 import { Textarea } from "@/components/ui/textarea"
 import {
     Tabs,
@@ -26,7 +26,6 @@ import {
     Drawer,
     DrawerClose,
     DrawerContent,
-    DrawerDescription,
     DrawerFooter,
     DrawerHeader,
     DrawerTitle,
@@ -35,37 +34,60 @@ import {
 import { ICard } from "@/app/interfaces"
 import { LoadingCards } from "../loading-cards"
 import { CardComponent } from "../card-component"
-import { set } from "react-hook-form"
 import { useToast } from "@/hooks/use-toast"
-import { ToastAction } from "@/components/ui/toast"
 import { Progress } from "@/components/ui/progress"
+import { debounce } from "lodash";
 
-const revalidate = 60 * 60 * 24
+interface SearchResponse {
+    results: ICard[];
+    totalResults: number;
+    currentPage: number;
+    totalPages: number;
+}
+
+interface QueryState {
+    name?: string;
+    cmc?: string;
+    pow?: string;
+    toughness?: string;
+    keywords?: string;
+    legal?: string;
+    games?: string;
+    layout?: string;
+}
 
 export function DeckBuilderComponent() {
     const { toast, } = useToast()
-    const [data, setData] = useState<ICard[]>([])
+    const [deckData, setDeckData] = useState<ICard[]>([])
     const [loadingData, setLoadingData] = useState(false)
-    const [cardsToSearch, setCardsToSearch] = useState<string>("")
+    const [deckFromList, setDeckFromList] = useState<string>("")
     const [open, setOpen] = useState(false)
 
-    const [deckRegisterInfo, setDeckRegisterInfo] = useState({ name: "", description: "" })
+    const [loadingBulkData, setLoadingBulkData] = useState(true);
+    const [progress, setProgress] = useState(0);
+    const [searchData, setSearchData] = useState<ICard[]>([])
+    const [searchResult, setSearchResult] = useState<ICard[]>([])
+
+    const [isStarted, setIsStarted] = useState(false)
 
     const handleGetDeckCards = async () => {
         setLoadingData(true);
-        const cards = cardsToSearch
+        const cards = deckFromList
             .split("\n")
             .map((line) => line.trim())
             .filter((line) => line.length > 0);
 
         if (cards.length === 0) {
+            setIsStarted(true);
+            setOpen(false);
+            setLoadingData(false);
             return;
         }
 
         try {
             setOpen(false);
 
-            const response = await fetch("/api/search-cards", {
+            const response = await fetch("/api/search-cards-by-list", {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
@@ -78,7 +100,8 @@ export function DeckBuilderComponent() {
             }
 
             const data = await response.json();
-            setData(data);
+            setDeckData(data);
+
         } catch (err) {
             console.error(err);
         } finally {
@@ -89,8 +112,6 @@ export function DeckBuilderComponent() {
     const handleSaveDeck = async () => {
     }
 
-    const [loadingBulkData, setLoadingBulkData] = useState(true);
-    const [progress, setProgress] = useState(0);
 
     const checkCacheStatus = async () => {
         try {
@@ -118,7 +139,7 @@ export function DeckBuilderComponent() {
             return;
         }
 
-        const eventSource = new EventSource("/api/bulk-data/get-bulk-data");
+        const eventSource = new EventSource("/api/bulk-data/update-bulk-data");
 
         const { id, update: updateToast, dismiss } = toast({
             title: "Syncing",
@@ -204,8 +225,66 @@ export function DeckBuilderComponent() {
     };
 
     useEffect(() => {
-        handleFetchBulkData();
+        handleFetchBulkData()
     }, []);
+
+
+    const [input, setInput] = useState<string>("")
+    const [query, setQuery] = useState<QueryState>({})
+    const [cards, setCards] = useState<ICard[]>([])
+    const [loading, setLoading] = useState<boolean>(false)
+    const [totalResults, setTotalResults] = useState<number>(0)
+
+    const parseInputToQuery = (input: string): QueryState => {
+        const regex = /:(\w+)\s+([^:]+)/g
+        const parsedQuery: QueryState = {}
+        let match
+
+        while ((match = regex.exec(input)) !== null) {
+            const [, key, value] = match
+            parsedQuery[key as keyof QueryState] = value.trim()
+        }
+
+        if (Object.keys(parsedQuery).length === 0 && input.trim()) {
+            parsedQuery.name = input.trim()
+        }
+
+        return parsedQuery;
+    };
+
+    const fetchCards = async () => {
+        setLoading(true);
+        try {
+            const params = new URLSearchParams(query as Record<string, string>)
+            const response = await fetch(`/api/search-cards?${params.toString()}`)
+            const data: SearchResponse = await response.json()
+            setCards(data.results)
+            setTotalResults(data.totalResults)
+        } catch (error) {
+            console.error("Error fetching cards:", error)
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const debouncedFetch = debounce(fetchCards, 400)
+
+    useEffect(() => {
+        if (input.trim()) {
+            const parsedQuery = parseInputToQuery(input)
+            setQuery(parsedQuery);
+        }
+    }, [input]);
+
+    useEffect(() => {
+        if (Object.keys(query).length > 0) {
+            debouncedFetch()
+        }
+
+        return () => {
+            debouncedFetch.cancel()
+        };
+    }, [query]);
 
     return (
         <motion.div
@@ -216,7 +295,7 @@ export function DeckBuilderComponent() {
 
             <Dialog open={open} onOpenChange={setOpen}>
                 <DialogTrigger asChild>
-                    {(!loadingData && data.length === 0) &&
+                    {(!loadingData && !isStarted) &&
                         <Button variant="outline">Start here!</Button>
                     }
                 </DialogTrigger>
@@ -231,8 +310,8 @@ export function DeckBuilderComponent() {
                     <Textarea
                         placeholder={`4 Card Name\n3 Card Name\n2 Card Name\nCard Name`}
                         className="w-80 h-80"
-                        value={cardsToSearch}
-                        onChange={(e) => setCardsToSearch(e.target.value)}
+                        value={deckFromList}
+                        onChange={(e) => setDeckFromList(e.target.value)}
                     />
                     <DialogFooter>
                         <DialogClose asChild>
@@ -240,58 +319,94 @@ export function DeckBuilderComponent() {
                         </DialogClose>
                         <Button onClick={() => handleGetDeckCards()}
                             type="button" variant={"default"}>Import</Button>
+                        <Button onClick={() => handleGetDeckCards()}
+                            type="button" variant={"default"}>Start from scratch!</Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
 
-
             {loadingData && <LoadingCards />}
 
-            {data.length > 0 && (
-                <div className="w-full mt-4 flex-col gap-4 relative">
+            {isStarted && (
+                <div className="w-full flex flex-col md:flex-row mt-4 gap-4 relative">
+                    <div className="flex flex-col w-full sm:w-1/5 gap-2">
+                        <span className="text-center font-semibold">
+                            Utility bar
+                        </span>
+                        <Drawer>
+                            <DrawerTitle>
+                            </DrawerTitle>
+                            <DrawerTrigger asChild>
+                                <Button>
+                                    Manage deck
+                                </Button>
+                            </DrawerTrigger>
+                            <DrawerContent>
+                                <div className="max-w-3xl w-full mx-auto">
+                                    <DrawerHeader>
+                                    </DrawerHeader>
+                                    <Tabs defaultValue="deck-form" className="flex flex-col pb-4">
+                                        <TabsList className="grid w-full grid-cols-2">
+                                            <TabsTrigger value="deck-form">Information</TabsTrigger>
+                                            <TabsTrigger value="deck-info">Analysis</TabsTrigger>
+                                        </TabsList>
+                                        <TabsContent value="deck-form">
+                                            <Label>Deck Name</Label>
+                                            <Input placeholder="Deck Name" className="mb-4" />
+                                            <Label>Deck Description</Label>
+                                            <Textarea placeholder="Deck Description" />
+                                        </TabsContent>
+                                        <TabsContent value="deck-info">
+                                            <DeckAnalysis cards={deckData} />
+                                        </TabsContent>
+                                    </Tabs>
+                                    <DrawerFooter>
+                                        <div className="flex gap-4 items-center justify-end mb-4">
+                                            <DrawerClose asChild>
+                                                <Button variant="outline">Cancel</Button>
+                                            </DrawerClose>
+                                            <Button onClick={() => handleSaveDeck()} >
+                                                Save
+                                            </Button>
+                                        </div>
+                                    </DrawerFooter>
+                                </div>
+                            </DrawerContent>
+                        </Drawer>
+                        <Button>
+                            Manage deck
+                        </Button>
+                        <div className="mb-4">
+                            <input
+                                type="text"
+                                placeholder="Search (e.g., :name dragon :cmc 4 :pow 3)"
+                                value={input}
+                                onChange={(e) => setInput(e.target.value)}
+                                className="border p-2 w-full rounded"
+                            />
+                        </div>
 
-                    <Drawer>
-                        <DrawerTitle>
-                        </DrawerTitle>
-                        <DrawerTrigger>Open</DrawerTrigger>
-                        <DrawerContent>
-                            <div className="max-w-3xl w-full mx-auto">
-                                <DrawerHeader>
-                                </DrawerHeader>
-                                <Tabs defaultValue="deck-form" className="flex flex-col pb-4">
-                                    <TabsList className="grid w-full grid-cols-2">
-                                        <TabsTrigger value="deck-form">Information</TabsTrigger>
-                                        <TabsTrigger value="deck-info">Analysis</TabsTrigger>
-                                    </TabsList>
-                                    <TabsContent value="deck-form">
-                                        <Label>Deck Name</Label>
-                                        <Input placeholder="Deck Name" className="mb-4" />
-                                        <Label>Deck Description</Label>
-                                        <Textarea placeholder="Deck Description" />
-                                    </TabsContent>
-                                    <TabsContent value="deck-info">
-                                        <DeckAnalysis cards={data} />
-                                    </TabsContent>
-                                </Tabs>
-                                <DrawerFooter>
-                                    <div className="flex gap-4 items-center justify-end mb-4">
-                                        <DrawerClose asChild>
-                                            <Button variant="outline">Cancel</Button>
-                                        </DrawerClose>
-                                        <Button onClick={() => handleSaveDeck()} >
-                                            Save
-                                        </Button>
-                                    </div>
-                                </DrawerFooter>
+                        {loading ? (
+                            <p>Loading...</p>
+                        ) : (
+                            <div>
+                                <p>
+                                    Showing {cards.length} of {totalResults} results
+                                </p>
+                                <div className="flex flex-col">
+                                    {cards.map((card) => (
+                                        <div key={card.id} className="p-4 border rounded shadow-sm">
+                                            <h3 className="font-bold">{card.name}</h3>
+                                        </div>
+                                    ))}
+                                </div>
                             </div>
-                        </DrawerContent>
-                    </Drawer>
+                        )}
+                    </div>
 
-
-
-                    <div className="flex flex-wrap gap-2">
-                        {data.map((card) => (
-                            <div className="flex-grow flex-shrink-0" key={card.id}>
+                    <div id="list" className="grid w-full grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+                        {deckData.map((card) => (
+                            <div className="flex-grow flex-shrink-0 " key={card.id}>
                                 <CardComponent {...card} />
                             </div>
                         ))}

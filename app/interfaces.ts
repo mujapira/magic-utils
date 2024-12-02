@@ -28,25 +28,8 @@ export interface ScryfallCard {
   colors?: string[]
   color_identity: string[]
   keywords: string[]
-  legalities: {
-    standard: string
-    future: string
-    historic: string
-    modern: string
-    pioneer: string
-    legacy: string
-    pauper: string
-    vintage: string
-    penny: string
-    commander: string
-    brawl: string
-    historicbrawl: string
-    alchemy: string
-    paupercommander: string
-    duel: string
-    oldschool: string
-    premodern: string
-  }
+  legalities: Legalities
+  games: string[]
   set: string
   set_name: string
   rarity: string
@@ -96,6 +79,30 @@ export interface ScryfallCard {
 }
 
 export interface ICard extends ScryfallCard {
-    quantity: number
-    isDoubleSide: boolean
+  quantity: number
+  isDoubleSide: boolean
 }
+
+export interface Legalities {
+  standard: Legal
+  future: Legal
+  historic: Legal
+  modern: Legal
+  pioneer: Legal
+  legacy: Legal
+  pauper: Legal
+  vintage: Legal
+  penny: Legal
+  commander: Legal
+  brawl: Legal
+  historicbrawl: Legal
+  alchemy: Legal
+  paupercommander: Legal
+  duel: Legal
+  oldschool: Legal
+  premodern: Legal
+}
+
+export type LegalFormats = keyof Legalities;
+
+export type Legal = "legal" | "not_legal"
