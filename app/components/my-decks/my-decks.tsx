@@ -231,9 +231,9 @@ export function MyDeckComponent() {
                 </>
             )}
 
-            {loadingData && <LoadingCards />}
 
-            {!isCardSelectionStarted && (
+
+            {isCardSelectionStarted && (
                 <div className="w-full flex flex-col md:flex-row mt-4 gap-4 relative h-full">
                     <div className="flex flex-col w-full sm:w-2/5 gap-2">
                         <span className="text-center font-semibold">
@@ -319,7 +319,7 @@ export function MyDeckComponent() {
                                 </p>
                                 <div className="flex flex-col">
                                     {searchResult.map((card) => (
-                                        <div key={card.id + "searchResult"} className="p-4 border rounded shadow-sm">
+                                        <div key={card.id + "searchResult"} className="">
                                             <CardComponent card={card} isSearch />
                                         </div>
                                     ))}
@@ -327,14 +327,20 @@ export function MyDeckComponent() {
                             </div>
                         )}
                     </div>
-
-                    <div id="list" className="grid w-full grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
-                        {deckData.map((card) => (
-                            <div className="flex-grow flex-shrink-0 " key={card.id + "deckData"}>
-                                <CardComponent card={card} />
-                            </div>
-                        ))}
-                    </div>
+                    {loadingData && <LoadingCards />}
+                    {!loadingData && (
+                        <div id="list" className="grid w-full grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+                            {deckData.map((card) => (
+                                <>
+                                    {card.quantity > 0 && (
+                                        <div className="flex-grow flex-shrink-0 " key={card.id + "deckData"}>
+                                            <CardComponent card={card} />
+                                        </div>
+                                    )}
+                                </>
+                            ))}
+                        </div>
+                    )}
                 </div>
 
             )}

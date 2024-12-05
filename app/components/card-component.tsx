@@ -23,6 +23,14 @@ export function CardComponent({ card, isSearch = false }: CardComponentProps) {
 
     const handleIncrease = () => updateCardQuantity(card.id, card.quantity + 1);
 
+    const handleAddCardToDeck = () => {
+        addCardToDeck(card)
+        toast({
+            title: "Card added",
+            description: `${card.name} added to deck`,
+        });
+    }
+
     const handleDecrease = () => {
         if (card.quantity === 1) {
             toast({
@@ -52,7 +60,7 @@ export function CardComponent({ card, isSearch = false }: CardComponentProps) {
                     <Eye />
                 </Button>
                 {isSearch ? (
-                    <Button type="button" variant="secondary" onClick={() => addCardToDeck(card)} size="icon">
+                    <Button type="button" variant="secondary" onClick={() => handleAddCardToDeck()} size="icon">
                         <Plus />
                     </Button>
                 ) : (
