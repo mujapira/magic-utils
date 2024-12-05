@@ -7,27 +7,28 @@ import { Minus, Plus, PlusCircle, Replace } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { ToastAction } from "@radix-ui/react-toast"
 
-export function SaarchCardComponent({ ...card }: ICard) {
-    
-    const handleAddCard = () => {
+type Props = {
+    card: ICard
+    addCardToDeck: (card: ICard) => void
+}
 
-    }
+export function SearchCardComponent({ card, addCardToDeck }: Props) {
 
     const renderButtons = () => (
         <div className="flex h-full w-full flex-col items-center justify-center gap-4 opacity-0 
         hover:opacity-100
         duration-300">
 
-                <Button
-                    type="button"
-                    variant="secondary"
-                    onClick={handleAddCard}
-                    className="w-4 h-8"
-                >
-                    <PlusCircle/>
-                </Button>
-      
-          
+            <Button
+                type="button"
+                variant="secondary"
+                onClick={() => addCardToDeck(card)}
+                className="w-4 h-8"
+            >
+                <PlusCircle />
+            </Button>
+
+
         </div>
     );
 
@@ -38,20 +39,18 @@ export function SaarchCardComponent({ ...card }: ICard) {
 
     return (
         <Fragment>
+            <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 1 }}
+                style={{
+                    backgroundImage: `url(${card.image_uris?.normal})`,
+                }}
+                className={cardStyles}
+            >
+                {renderButtons()}
+            </motion.div>
 
-    
-                <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ duration: 1 }}
-                    style={{
-                        backgroundImage: `url(${card.image_uris?.normal})`,
-                    }}
-                    className={cardStyles}
-                >
-                    {renderButtons()}
-                </motion.div>
-       
         </Fragment>
     )
 }

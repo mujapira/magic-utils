@@ -10,6 +10,8 @@ import { ToastProvider } from "@radix-ui/react-toast";
 import { Toast } from "@/components/ui/toast";
 import { Toaster } from "@/components/ui/toaster";
 import { LeftSidebar } from "./components/layout/left-sidebar";
+import { MtgProvider } from "./contexts/mtgContext";
+import { TooltipProvider } from "@radix-ui/react-tooltip";
 
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",
@@ -56,17 +58,21 @@ export default function RootLayout({
         >
           <ToastProvider>
             <SidebarProvider>
-              <LeftSidebar />
-              <div className="flex flex-col w-full items-center justify-between
+              <TooltipProvider>
+                <LeftSidebar />
+                <div className="flex flex-col w-full items-center justify-between
               min-h-screen"
-              >
-                <Header />
-                <main className="flex flex-1 max-w-screen-2xl w-full px-2">
-                  <Toaster />
-                  {children}
-                </main>
-                <Footer />
-              </div>
+                >
+                  <Header />
+                  <MtgProvider>
+                    <main className="flex flex-1 max-w-screen-2xl w-full px-2">
+                      <Toaster />
+                      {children}
+                    </main>
+                  </MtgProvider>
+                  <Footer />
+                </div>
+              </TooltipProvider>
             </SidebarProvider>
           </ToastProvider>
         </ThemeProvider>

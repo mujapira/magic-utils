@@ -1,45 +1,65 @@
-import { ICard, ScryfallCard } from "@/app/interfaces";
-import path from "path";
-import fs from "fs/promises";
-import { NextResponse } from "next/server";
+import { NextResponse } from "next/server"
+import path from "path"
+import fs from "fs/promises"
+import {
+  SearchCardByListRequestBody,
+  ICard,
+  ScryfallCard,
+} from "@/app/interfaces"
 
 export const POST = async (req: Request) => {
-    try {
-        const filePath = path.join(process.cwd(), "public", "default_cards.json");
+  try {
+    const filePath = path.join(process.cwd(), "public", "default_cards.json")
+    const fileData = await fs.readFile(filePath, "utf-8")
+    const allCards: ScryfallCard[] = JSON.parse(fileData)
 
-        const fileData = await fs.readFile(filePath, "utf-8");
-        const allCards: ScryfallCard[] = JSON.parse(fileData);
+    const body: SearchCardByListRequestBody = await req.json()
+    const cardRequests = body.cards
 
-        const body = await req.json();
-        const cardLines: string[] = body.cards;
+    if (!Array.isArray(cardRequests) || cardRequests.length === 0) {
+      return NextResponse.json({ error: "No cards provided." }, { status: 400 })
+    }
 
-        if (!Array.isArray(cardLines) || cardLines.length === 0) {
-            return NextResponse.json({ error: "A lista de cartas está vazia" }, { status: 400 });
+    const result: ICard[] = cardRequests
+      .map(({ id, name, quantity }) => {
+        let cardData: ScryfallCard | undefined
+
+        if (id !== "0") {
+          cardData = allCards.find((card) => card.id === id)
         }
 
-        const result: ICard[] = cardLines.map((line) => {
-            const match = line.match(/^(\d+)?\s*(.+)$/);
-            if (!match) return null;
+        if (!cardData) {
+          cardData = allCards.find(
+            (card) => card.name.toLowerCase() === name.toLowerCase()
+          )
+        }
 
-            const quantity = match[1] ? parseInt(match[1], 10) : 1;
-            const name = match[2]?.trim();
+        if (!cardData) {
+          cardData = allCards.find((card) =>
+            card.name.toLowerCase().includes(name.toLowerCase())
+          )
+        }
 
-            const cardData = allCards.find((card) =>
-                card.name.toLowerCase() === name.toLowerCase()
-            ) || allCards.find((card) =>
-                card.name.toLowerCase().includes(name.toLowerCase())
-            );
+        if (!cardData) {
+          return null
+        }
 
-            return {
-                ...cardData,
-                isDoubleSide: cardData?.card_faces ? cardData.card_faces.length > 1 : false,
-                quantity,
-            };
-        }) as ICard[];
+        return {
+          ...cardData,
+          isDoubleSide: cardData.card_faces
+            ? cardData.card_faces.length > 1
+            : false,
+          quantity: Number(quantity),
+        }
+      })
+      .filter(Boolean) as ICard[]
 
-        return NextResponse.json(result, { status: 200 });
-    } catch (error) {
-        console.error("Error:", error);
-        return NextResponse.json({ error: "Erro ao processar a requisição" }, { status: 500 });
-    }
-};
+    return NextResponse.json({ cards: result }, { status: 200 })
+  } catch (error) {
+    console.error("Error in POST /search-cards-by-list:", error)
+    return NextResponse.json(
+      { error: "Failed to process the request." },
+      { status: 500 }
+    )
+  }
+}

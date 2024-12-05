@@ -1,3 +1,5 @@
+import { LargeNumberLike } from "crypto"
+
 export interface ScryfallCard {
   object: "card"
   id: string
@@ -103,6 +105,33 @@ export interface Legalities {
   premodern: Legal
 }
 
-export type LegalFormats = keyof Legalities;
+export type LegalFormats = keyof Legalities
 
 export type Legal = "legal" | "not_legal"
+
+export interface UserDeck {
+  id: string
+  name: string
+  quantity: number
+}
+
+export interface LocalStorageDeck {
+  id: string
+  name: string
+  description: string
+  cards: UserDeck[]
+}
+
+export interface SearchCardByListRequest {
+  id: string
+  name: string
+  quantity: LargeNumberLike
+}
+
+export interface SearchCardByListRequestBody {
+  cards: SearchCardByListRequest[]
+}
+
+export interface SearchCardByListResponseBody {
+  cards: ICard[]
+}

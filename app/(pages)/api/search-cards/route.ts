@@ -31,15 +31,18 @@ const loadJSON = () => {
   }
 }
 
-interface QueryParams {
+export interface QueryParams {
   name?: string
   cmc?: string
   pow?: string
-  toughness?: string
+  tou?: string
   keywords?: string
   legal?: LegalFormats
   games?: string
   layout?: string
+  rarity?: string
+  set?: string
+  type?: string
   page?: string
   pageSize?: string
 }
@@ -50,6 +53,9 @@ export const GET = async (req: Request): Promise<NextResponse> => {
     url.searchParams
   ) as QueryParams
 
+  //cmc: 4 name: admiral
+  //console.log(params)
+  //{ cmc: '4 name' }
   // Load JSON if not already cached
   loadJSON()
 
@@ -58,18 +64,23 @@ export const GET = async (req: Request): Promise<NextResponse> => {
     const matchesName = params.name
       ? card.name.includes(normalizeString(params.name))
       : true
+
     const matchesCmc = params.cmc ? card.cmc === parseFloat(params.cmc) : true
+
     const matchesPower = params.pow ? card.power === params.pow : true
-    const matchesToughness = params.toughness
-      ? card.toughness === params.toughness
-      : true
+
+    const matchesToughness = params.tou ? card.toughness === params.tou : true
+
     const matchesKeywords = params.keywords
-      ? card.keywords?.includes(normalizeString(params.keywords))
+      ? card.keywords?.some((keyword) =>
+          normalizeString(keyword).includes(
+            normalizeString(params.keywords || "")
+          )
+        )
       : true
 
-    const isValidLegalFormat = (key: string): key is LegalFormats => {
-      return key in card.legalities
-    }
+    const isValidLegalFormat = (key: string): key is LegalFormats =>
+      key in card.legalities
 
     const matchesLegal = params.legal
       ? isValidLegalFormat(params.legal) &&
@@ -79,8 +90,21 @@ export const GET = async (req: Request): Promise<NextResponse> => {
     const matchesGames = params.games
       ? card.games?.includes(normalizeString(params.games))
       : true
+
     const matchesLayout = params.layout
       ? card.layout === normalizeString(params.layout)
+      : true
+
+    const matchesRarity = params.rarity
+      ? card.rarity.includes(normalizeString(params.rarity))
+      : true
+
+    const matchesSet = params.set
+      ? card.set === normalizeString(params.set)
+      : true
+
+    const matchesType = params.type
+      ? normalizeString(card.type_line).includes(normalizeString(params.type))
       : true
 
     return (
@@ -91,7 +115,10 @@ export const GET = async (req: Request): Promise<NextResponse> => {
       matchesKeywords &&
       matchesLegal &&
       matchesGames &&
-      matchesLayout
+      matchesLayout &&
+      matchesRarity &&
+      matchesSet &&
+      matchesType
     )
   })
 
@@ -101,7 +128,7 @@ export const GET = async (req: Request): Promise<NextResponse> => {
   const start = (page - 1) * pageSize
   const paginatedResults = filteredCards.slice(start, start + pageSize)
 
-  // Default behavior: search by name if no parameters provided
+  // Default behavior: if no parameters are provided, return all cards
   if (!Object.keys(params).length) {
     return NextResponse.json({
       results: cachedData.slice(0, pageSize),
@@ -111,7 +138,7 @@ export const GET = async (req: Request): Promise<NextResponse> => {
     })
   }
 
-  // Return results
+  // Return filtered results
   return NextResponse.json({
     results: paginatedResults,
     totalResults: filteredCards.length,

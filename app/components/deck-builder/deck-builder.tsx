@@ -37,255 +37,34 @@ import { CardComponent } from "../card-component"
 import { useToast } from "@/hooks/use-toast"
 import { Progress } from "@/components/ui/progress"
 import { debounce } from "lodash";
-import { SaarchCardComponent } from "../search-card-component"
+import { SearchCardComponent } from "../search-card-component"
+import { useMtg } from "@/app/contexts/mtgContext"
 
-interface SearchResponse {
-    results: ICard[];
-    totalResults: number;
-    currentPage: number;
-    totalPages: number;
-}
-
-interface QueryState {
-    name?: string;
-    cmc?: string;
-    pow?: string;
-    toughness?: string;
-    keywords?: string;
-    legal?: string;
-    games?: string;
-    layout?: string;
-}
 
 export function DeckBuilderComponent() {
-    const { toast, } = useToast()
-    const [deckData, setDeckData] = useState<ICard[]>([])
-    const [loadingData, setLoadingData] = useState(false)
-    const [deckFromList, setDeckFromList] = useState<string>("")
-    const [open, setOpen] = useState(false)
+    const {
+        deckData,
+        loadingData,
+        addCardToDeck,
+        handleGetDeckCards,
+        handleSaveDeck,
+        setDeckFromList,
+        deckFromList,
+        input,
+        setInput,
+        loading,
+        totalResults,
+        searchResult,
+        isCardSelectionStarted,
+        isModalImportListOpen,
+        setIsModalImportListOpen,
+        isDrawerDeckOpened,
+        setIsDrawerDeckOpened
+    } = useMtg();
 
-    const [loadingBulkData, setLoadingBulkData] = useState(true);
-    const [progress, setProgress] = useState(0);
-    const [searchData, setSearchData] = useState<ICard[]>([])
-    const [searchResult, setSearchResult] = useState<ICard[]>([])
+    const [deckName, setDeckName] = useState("");
+    const [deckDescription, setDeckDescription] = useState("");
 
-    const [isStarted, setIsStarted] = useState(false)
-
-    const handleGetDeckCards = async () => {
-        setLoadingData(true);
-        const cards = deckFromList
-            .split("\n")
-            .map((line) => line.trim())
-            .filter((line) => line.length > 0);
-
-        if (cards.length === 0) {
-            setIsStarted(true);
-            setOpen(false);
-            setLoadingData(false);
-            return;
-        }
-
-        try {
-            setOpen(false);
-
-            const response = await fetch("/api/search-cards-by-list", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify({ cards }),
-            });
-
-            if (!response.ok) {
-                throw new Error("Erro ao buscar cartas. Tente novamente.");
-            }
-
-            const data = await response.json();
-            setDeckData(data);
-
-        } catch (err) {
-            console.error(err);
-        } finally {
-            setLoadingData(false);
-        }
-    }
-
-    const handleSaveDeck = async () => {
-    }
-
-
-    const checkCacheStatus = async () => {
-        try {
-            const response = await fetch("/api/bulk-data/check-cache");
-
-            if (response.ok) {
-                const data = await response.json();
-                return data.status === "cached";
-            } else {
-                console.error("Erro ao verificar o cache:", response.statusText);
-
-                return false;
-            }
-        } catch (err) {
-            console.error("Erro de rede ao verificar o cache:", err);
-            return false;
-        }
-    };
-
-    const handleFetchBulkData = async () => {
-        const isCached = await checkCacheStatus();
-
-        if (isCached) {
-            setLoadingBulkData(false);
-            return;
-        }
-
-        const eventSource = new EventSource("/api/bulk-data/update-bulk-data");
-
-        const { id, update: updateToast, dismiss } = toast({
-            title: "Syncing",
-            description:
-                <div className="flex flex-col gap-1">
-                    <span>We are getting the latest MTG data 🧙‍♂️</span>
-                    <Progress value={0} max={100} className="w-80" />
-                </div>
-            ,
-            duration: 40000,
-        });
-
-        eventSource.onmessage = (event) => {
-            const message = event.data;
-
-            if (message.includes("%")) {
-                const progress = parseInt(message.replace("%", ""));
-                setProgress(progress);
-
-                updateToast({
-                    id,
-                    title: "Syncing",
-                    description:
-                        <div className="flex flex-col gap-1">
-                            <span>We are getting the latest MTG data 🧙‍♂️</span>
-                            <Progress value={progress} max={100} className="w-80" />
-                        </div>
-                    ,
-                });
-            } else if (message === "Download completed!") {
-                console.log("Download completed!");
-                setProgress(100);
-                eventSource.close();
-                setLoadingBulkData(false);
-
-                updateToast({
-                    id,
-                    title: "Sync completed!",
-                    description:
-                        <div className="flex flex-col gap-1">
-                            <span>Start building your deck 🎉🎉</span>
-                            <Progress value={100} max={100} className="w-80" />
-                        </div>
-                    ,
-                    duration: 2000,
-                });
-
-                setTimeout(() => {
-                    dismiss();
-                }, 2000);
-            } else if (message.startsWith("Error")) {
-                console.error(message);
-                eventSource.close();
-                setLoadingBulkData(false);
-
-                updateToast({
-                    id,
-                    title: "Oh no 😢",
-                    description: "An error occurred while syncing data.",
-                    variant: "destructive",
-                    duration: 2000,
-                });
-            } else {
-                console.log(message);
-            }
-        };
-
-        eventSource.onerror = () => {
-            console.error("Error in SSE connection.");
-            setLoadingBulkData(false);
-            eventSource.close();
-
-            updateToast({
-                id,
-                title: "Connection Error",
-                description: "The connection to the server was interrupted.",
-                variant: "destructive",
-                duration: 5000,
-            });
-        };
-
-        return eventSource;
-    };
-
-    useEffect(() => {
-        handleFetchBulkData()
-    }, []);
-
-
-    const [input, setInput] = useState<string>("")
-    const [query, setQuery] = useState<QueryState>({})
-    const [cards, setCards] = useState<ICard[]>([])
-    const [loading, setLoading] = useState<boolean>(false)
-    const [totalResults, setTotalResults] = useState<number>(0)
-
-    const parseInputToQuery = (input: string): QueryState => {
-        const regex = /:(\w+)\s+([^:]+)/g
-        const parsedQuery: QueryState = {}
-        let match
-
-        while ((match = regex.exec(input)) !== null) {
-            const [, key, value] = match
-            parsedQuery[key as keyof QueryState] = value.trim()
-        }
-
-        if (Object.keys(parsedQuery).length === 0 && input.trim()) {
-            parsedQuery.name = input.trim()
-        }
-
-        return parsedQuery;
-    };
-
-    const fetchCards = async () => {
-        setLoading(true);
-        try {
-            const params = new URLSearchParams(query as Record<string, string>)
-            const response = await fetch(`/api/search-cards?${params.toString()}`)
-            const data: SearchResponse = await response.json()
-            setCards(data.results)
-            setTotalResults(data.totalResults)
-        } catch (error) {
-            console.error("Error fetching cards:", error)
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const debouncedFetch = debounce(fetchCards, 400)
-
-    useEffect(() => {
-        if (input.trim()) {
-            const parsedQuery = parseInputToQuery(input)
-            setQuery(parsedQuery);
-        }
-    }, [input]);
-
-    useEffect(() => {
-        if (Object.keys(query).length > 0) {
-            debouncedFetch()
-        }
-
-        return () => {
-            debouncedFetch.cancel()
-        };
-    }, [query]);
 
     return (
         <motion.div
@@ -294,13 +73,14 @@ export function DeckBuilderComponent() {
             transition={{ duration: 1 }}
             className="flex items-center flex-col h-100 justify-center pb-40 w-full">
 
-            <Dialog open={open} onOpenChange={setOpen}>
+            <Dialog open={isModalImportListOpen} onOpenChange={setIsModalImportListOpen}>
                 <DialogTrigger asChild>
-                    {(!loadingData && !isStarted) &&
+                    {(!loadingData && !isCardSelectionStarted) &&
                         <Button variant="outline">Start here!</Button>
                     }
                 </DialogTrigger>
                 <DialogContent className="">
+                    {/* oopcao decklist */}
                     <DialogHeader>
                         <DialogTitle>Deck List</DialogTitle>
                         <DialogDescription>
@@ -323,18 +103,24 @@ export function DeckBuilderComponent() {
                         <Button onClick={() => handleGetDeckCards()}
                             type="button" variant={"default"}>Start from scratch!</Button>
                     </DialogFooter>
+
+                    {/* opção from scratch */}
+
+                    {/* opção from scratch */}
+
                 </DialogContent>
             </Dialog>
 
             {loadingData && <LoadingCards />}
 
-            {isStarted && (
+
+            {isCardSelectionStarted && (
                 <div className="w-full flex flex-col md:flex-row mt-4 gap-4 relative">
                     <div className="flex flex-col w-full sm:w-1/5 gap-2">
                         <span className="text-center font-semibold">
                             Utility bar
                         </span>
-                        <Drawer>
+                        <Drawer open={isDrawerDeckOpened} onOpenChange={setIsDrawerDeckOpened}>
                             <DrawerTitle>
                             </DrawerTitle>
                             <DrawerTrigger asChild>
@@ -353,9 +139,13 @@ export function DeckBuilderComponent() {
                                         </TabsList>
                                         <TabsContent value="deck-form">
                                             <Label>Deck Name</Label>
-                                            <Input placeholder="Deck Name" className="mb-4" />
+                                            <Input placeholder="Deck Name" className="mb-4"
+                                                onChange={(e) => setDeckName(e.target.value)}
+                                            />
                                             <Label>Deck Description</Label>
-                                            <Textarea placeholder="Deck Description" />
+                                            <Textarea
+                                                onChange={(e) => setDeckDescription(e.target.value)}
+                                                placeholder="Deck Description" />
                                         </TabsContent>
                                         <TabsContent value="deck-info">
                                             <DeckAnalysis cards={deckData} />
@@ -366,7 +156,7 @@ export function DeckBuilderComponent() {
                                             <DrawerClose asChild>
                                                 <Button variant="outline">Cancel</Button>
                                             </DrawerClose>
-                                            <Button onClick={() => handleSaveDeck()} >
+                                            <Button onClick={() => handleSaveDeck(deckName, deckDescription)}>
                                                 Save
                                             </Button>
                                         </div>
@@ -374,9 +164,7 @@ export function DeckBuilderComponent() {
                                 </div>
                             </DrawerContent>
                         </Drawer>
-                        <Button>
-                            Manage deck
-                        </Button>
+
                         <div className="mb-4">
                             <input
                                 type="text"
@@ -392,12 +180,12 @@ export function DeckBuilderComponent() {
                         ) : (
                             <div>
                                 <p>
-                                    Showing {cards.length} of {totalResults} results
+                                    Showing {searchResult.length} of {totalResults} results
                                 </p>
                                 <div className="flex flex-col">
-                                    {cards.map((card) => (
+                                    {searchResult.map((card) => (
                                         <div key={card.id} className="p-4 border rounded shadow-sm">
-                                            <SaarchCardComponent {...card} />
+                                            <SearchCardComponent addCardToDeck={() => addCardToDeck(card)} card={card} />
                                         </div>
                                     ))}
                                 </div>

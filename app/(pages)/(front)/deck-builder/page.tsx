@@ -9,6 +9,6 @@ export const metadata: Metadata = {
 
 export default function DeckBuilder() {
   return (
-    <DeckBuilderComponent />
+      <DeckBuilderComponent />
   );
 }

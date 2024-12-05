@@ -22,7 +22,10 @@ export function LeftSidebar() {
     const pathName = usePathname()
 
     const isRouteActive = (path: string): boolean => {
-        return pathName === path;
+        if (path === "/") {
+            return pathName === "/";
+        }
+        return pathName.startsWith(path);
     }
 
     return (
@@ -50,7 +53,7 @@ export function LeftSidebar() {
                                             <Button
                                                 className="flex duration-1000 items-center justify-start w-full"
                                                 variant={isRouteActive(item.route) ? "default" : "ghost"}>
-                                                <Link className="flex items-center justify-start w-full gap-2" href={item.route}>
+                                                <Link prefetch className="flex items-center justify-start w-full gap-2" href={item.route}>
                                                     <item.icon />
                                                     <span>{item.title}</span>
                                                 </Link>
