@@ -7,6 +7,8 @@ import { CheckCacheEndpoint, SearchCardsByListEndpoint, SearchCardsEndpoint, Upd
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 import { generateId } from "@/lib/utils";
+import { useRouter } from 'next/navigation'
+import { fakerDE as faker } from '@faker-js/faker';
 
 interface SearchResponse {
     results: ICard[];
@@ -36,7 +38,7 @@ interface MtgContextType {
     addCardToDeck: (card: ICard) => void;
     removeCardFromDeck: (cardId: string) => void;
     handleGetDeckCards: (source: "localStorage" | "list", deckId?: string) => Promise<ICard[] | undefined>;
-    handleSaveDeck: (deckName: string, deckDescription: string) => Promise<void>;
+    handleSaveDeck: (deckName: string, deckDescription: string, isNew: boolean) => Promise<LocalStorageDeck | undefined>;
     handleFetchBulkData: () => Promise<void>;
     setDeckFromList: React.Dispatch<React.SetStateAction<string>>;
     deckFromList: string;
@@ -50,7 +52,7 @@ interface MtgContextType {
     setIsModalImportListOpen: React.Dispatch<React.SetStateAction<boolean>>;
     isCardSelectionStarted: boolean;
     setIsCardSelectionStarted: React.Dispatch<React.SetStateAction<boolean>>;
-    savedDecks: LocalStorageDeck[];
+    savedLocalStorageDecks: LocalStorageDeck[];
     isDrawerDeckOpened: boolean;
     setIsDrawerDeckOpened: React.Dispatch<React.SetStateAction<boolean>>;
     deleteDeck: (deckId: string) => void;
@@ -60,17 +62,18 @@ interface MtgContextType {
     isCreatingNewDeck: boolean;
     setDeckData: React.Dispatch<React.SetStateAction<ICard[]>>;
     clearData: () => void;
+    activeLocalStorageDeck: LocalStorageDeck | undefined;
+    setActiveLocalStorageDeck: React.Dispatch<React.SetStateAction<LocalStorageDeck | undefined>>;
+    isFetchingData: boolean;
 }
 
 const MtgContext = createContext<MtgContextType | undefined>(undefined);
 
 export const MtgProvider = ({ children }: { children: ReactNode }) => {
     const { toast } = useToast();
-
-
+    const router = useRouter()
     const [isCardSelectionStarted, setIsCardSelectionStarted] = useState(false);
     const [isCreatingNewDeck, setIsCreatingNewDeck] = useState(false);
-
     const [isModalImportListOpen, setIsModalImportListOpen] = useState(false);
     const [isDrawerDeckOpened, setIsDrawerDeckOpened] = useState(false);
 
@@ -87,7 +90,9 @@ export const MtgProvider = ({ children }: { children: ReactNode }) => {
     const [loading, setLoading] = useState<boolean>(false);
     const [totalResults, setTotalResults] = useState<number>(0);
 
-    const [savedDecks, setSavedDecks] = useState<LocalStorageDeck[]>([]);
+    const [activeLocalStorageDeck, setActiveLocalStorageDeck] = useState<LocalStorageDeck>();
+    const [savedLocalStorageDecks, setSavedLocalStorageDecks] = useState<LocalStorageDeck[]>([]);
+    const [isFetchingData, setIsFetchingData] = useState(false);
 
     //#region General
     const addCardToDeck = (card: ICard) => {
@@ -108,18 +113,20 @@ export const MtgProvider = ({ children }: { children: ReactNode }) => {
             if (source === "localStorage") {
                 if (!deckId) {
                     setLoadingData(false);
-                    setIsCardSelectionStarted(true);
-
                     return;
                 }
+                const saved = await loadSavedDecks();
+                const savedDeck = saved.find((deck) => deck.id === deckId);
 
-                const savedDeck = savedDecks.find((deck) => deck.id === deckId);
                 if (!savedDeck) {
                     console.error(`Deck with ID ${deckId} not found.`);
                     return;
                 }
 
+                setActiveLocalStorageDeck(savedDeck);
                 cards = savedDeck.cards;
+                setIsCreatingNewDeck(false);
+
             } else if (source === "list") {
                 cards = deckFromList
                     .split("\n")
@@ -143,13 +150,15 @@ export const MtgProvider = ({ children }: { children: ReactNode }) => {
                     .filter(Boolean) as UserDeck[];
             }
 
-            setIsCardSelectionStarted(true);
-
             if (cards.length === 0) {
                 console.warn("No cards to process.");
                 setLoadingData(false);
                 return;
             }
+
+            setIsCreatingNewDeck(false);
+            setIsFetchingData(true);
+
 
             const response = await fetch("/api/search-cards-by-list", {
                 method: "POST",
@@ -165,13 +174,16 @@ export const MtgProvider = ({ children }: { children: ReactNode }) => {
 
             const data: SearchCardByListResponseBody = await response.json();
             setDeckData(data.cards);
+            setIsCreatingNewDeck(false);
+            setIsFetchingData(false);
             return data.cards;
         } catch (err) {
             console.error("Error in handleGetDeckCards:", err);
             return undefined;
         } finally {
-            setIsCreatingNewDeck(false);
             setLoadingData(false);
+            setIsCreatingNewDeck(false);
+
         }
     };
 
@@ -273,9 +285,6 @@ export const MtgProvider = ({ children }: { children: ReactNode }) => {
         setIsCardSelectionStarted(false);
     }
 
-    useEffect(() => {
-        handleFetchBulkData()
-    }, [])
     //#endregion
 
 
@@ -287,16 +296,13 @@ export const MtgProvider = ({ children }: { children: ReactNode }) => {
 
         tokens.forEach((token) => {
             if (token.startsWith("/")) {
-                // Define o token como chave, removendo a barra
                 currentKey = token.slice(1).toLowerCase();
                 parsedQuery[currentKey as keyof QueryState] = ""; // Inicializa a chave
             } else if (currentKey) {
-                // Adiciona ao valor da chave atual
                 parsedQuery[currentKey as keyof QueryState] += ` ${token}`;
             }
         });
 
-        // Limpa espaços desnecessários dos valores
         Object.keys(parsedQuery).forEach((key) => {
             parsedQuery[key as keyof QueryState] = parsedQuery[key as keyof QueryState]?.trim();
         });
@@ -361,61 +367,93 @@ export const MtgProvider = ({ children }: { children: ReactNode }) => {
 
 
     //#region Deck Local Storage
-    const handleSaveDeck = async (deckName: string, deckDescription: string) => {
-        if (!deckName.trim()) {
-            console.error("Deck name is required!");
-            return;
+    const handleSaveDeck = async (deckName: string, deckDescription: string, isNew: boolean) => {
+        if (deckName === "") {
+            const randomNumberFromOneToFive = Math.floor(Math.random() * 5) + 1;
+            if (randomNumberFromOneToFive === 1) deckName = faker.animal.cat() + faker.food.vegetable()
+            if (randomNumberFromOneToFive === 2) deckName = faker.animal.dog() + faker.food.fruit()
+            if (randomNumberFromOneToFive === 3) deckName = faker.animal.fish() + faker.food.ingredient()
+            if (randomNumberFromOneToFive === 4) deckName = faker.animal.bird() + faker.food.meat()
+            if (randomNumberFromOneToFive === 5) deckName = faker.animal.horse() + faker.food.spice()
         }
 
-        // Nome descritivo para a chave no localStorage
+        if (deckDescription === "") {
+            deckDescription = faker.lorem.sentence()
+        }
+
         const storageKey = "MtgUtils-Decks";
 
-        // Recupera decks existentes do localStorage
-
         if (!localStorage) {
-            return
+            return;
         }
 
         const savedDecks = JSON.parse(localStorage.getItem(storageKey) || "[]");
 
+        if (isNew) {
+            const newDeck = {
+                id: generateId(),
+                name: deckName,
+                description: deckDescription,
+                cards: deckData.map((card) => ({
+                    id: card.id,
+                    name: card.name,
+                    quantity: 1,
+                })),
+            };
 
-        // Cria o novo deck
-        const newDeck = {
-            id: generateId(),
-            name: deckName,
-            description: deckDescription,
-            cards: deckData.map((card) => ({
-                id: card.id,
-                name: card.name,
-                quantity: 1, // Default quantity, ajustável se necessário
-            })),
-        };
+            localStorage.setItem(storageKey, JSON.stringify([...savedDecks, newDeck]));
+            setSavedLocalStorageDecks([...savedDecks, newDeck]);
 
-        // Salva o novo deck no localStorage
-        localStorage.setItem(storageKey, JSON.stringify([...savedDecks, newDeck]));
+            return newDeck;
+        }
+
+        if (!isNew) {
+            const updatedDecks = savedDecks.map((deck: LocalStorageDeck) => {
+                if (deck.id === activeLocalStorageDeck?.id) {
+                    return {
+                        ...deck,
+                        name: deckName,
+                        description: deckDescription,
+                        cards: deckData.map((card) => ({
+                            id: card.id,
+                            name: card.name,
+                            quantity: card.quantity,
+                        })),
+                    };
+                }
+
+                return deck;
+            });
+
+            localStorage.setItem(storageKey, JSON.stringify(updatedDecks));
+            setSavedLocalStorageDecks(updatedDecks);
+
+            return activeLocalStorageDeck;
+        }
 
         toast({
             title: "Deck saved! 💾",
             description: "Your deck has been saved successfully.",
         })
 
-        setIsDrawerDeckOpened(false);
+        if (isNew) {
+            setIsCreatingNewDeck(false);
+        }
+
     };
 
     const deleteDeck = (deckId: string) => {
-        const updatedDecks = savedDecks.filter((deck) => deck.id !== deckId);
-        setSavedDecks(updatedDecks);
+        const updatedDecks = savedLocalStorageDecks.filter((deck) => deck.id !== deckId);
+        setSavedLocalStorageDecks(updatedDecks);
         localStorage.setItem("MtgUtils-Decks", JSON.stringify(updatedDecks));
     };
 
-    const loadSavedDecks = () => {
+    const loadSavedDecks = async (): Promise<LocalStorageDeck[]> => {
         const decks = JSON.parse(localStorage.getItem("MtgUtils-Decks") || "[]");
-        setSavedDecks(decks);
+        setSavedLocalStorageDecks(decks);
+        return decks;
     };
 
-    useEffect(() => {
-        loadSavedDecks();
-    }, []);
     //#endregion
 
 
@@ -429,9 +467,14 @@ export const MtgProvider = ({ children }: { children: ReactNode }) => {
     };
 
     const removeCard = (id: string) => {
-        // setDeckData((prevDeck) => prevDeck.filter((card) => card.id !== id));
+        setDeckData((prevDeck) => prevDeck.filter((card) => card.id !== id));
     };
     //#endregion
+
+    useEffect(() => {
+        loadSavedDecks();
+        handleFetchBulkData()
+    }, [])
 
     return (
         <MtgContext.Provider
@@ -456,7 +499,7 @@ export const MtgProvider = ({ children }: { children: ReactNode }) => {
                 isCardSelectionStarted,
                 setIsCardSelectionStarted,
                 deckFromList,
-                savedDecks,
+                savedLocalStorageDecks,
                 isDrawerDeckOpened,
                 setIsDrawerDeckOpened,
                 deleteDeck,
@@ -465,7 +508,10 @@ export const MtgProvider = ({ children }: { children: ReactNode }) => {
                 isCreatingNewDeck,
                 setIsCreatingNewDeck,
                 setDeckData,
-                clearData
+                clearData,
+                activeLocalStorageDeck,
+                setActiveLocalStorageDeck,
+                isFetchingData,
             }}
         >
             {children}

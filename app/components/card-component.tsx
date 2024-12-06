@@ -19,7 +19,7 @@ export function CardComponent({ card, isSearch = false }: CardComponentProps) {
     const { toast } = useToast();
     const [isTransformed, setIsTransformed] = useState<boolean>(false);
 
-    const isTransform = card.isDoubleSide;
+    const isTransform = (card.card_faces?.length ?? 0) > 1;
 
     const handleIncrease = () => updateCardQuantity(card.id, card.quantity + 1);
 
@@ -89,10 +89,15 @@ export function CardComponent({ card, isSearch = false }: CardComponentProps) {
         : card.image_uris?.normal;
 
     const cardStyles = `group rounded-xl relative w-full min-w-[144px] max-w-[288px] aspect-[488/680]
-      bg-cover bg-center bg-no-repeat flex flex-col justify-between overflow-hidden items-center justify-center`;
+        bg-cover bg-center bg-no-repeat flex flex-col justify-between overflow-hidden items-center justify-center`;
+
+    const cardStylesSearch = `group rounded-xl relative w-full
+        w-[288px] min-h-[340px] max-h-[680px] aspect-[488/680]
+        bg-cover bg-center bg-no-repeat flex flex-col justify-between overflow-hidden items-center justify-center`;
 
     return (
         <Fragment>
+          
             {isTransform ? (
                 <motion.div
                     key={isTransformed ? "back" : "front"}
@@ -100,7 +105,7 @@ export function CardComponent({ card, isSearch = false }: CardComponentProps) {
                     animate={{ opacity: 1, rotateY: 0 }}
                     transition={{ duration: 0.5, ease: "easeInOut" }}
                     style={{ backgroundImage: `url(${cardImage})` }}
-                    className={cardStyles}
+                    className={isSearch ? cardStylesSearch : cardStyles}
                 >
                     {!isSearch && (
                         <Button variant="secondary" className="bg-opacity-50 w-4 h-8 absolute bottom-0 left-0">
@@ -115,7 +120,7 @@ export function CardComponent({ card, isSearch = false }: CardComponentProps) {
                     animate={{ opacity: 1 }}
                     transition={{ duration: 1 }}
                     style={{ backgroundImage: `url(${cardImage})` }}
-                    className={cardStyles}
+                    className={isSearch ? cardStylesSearch : cardStyles}
                 >
                     {!isSearch && (
                         <Button variant="secondary" className="bg-opacity-50 w-4 h-8 absolute bottom-0 left-0">

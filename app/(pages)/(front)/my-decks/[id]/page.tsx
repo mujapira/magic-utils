@@ -9,6 +9,8 @@ export default async function EditDeck({
     const { id } = await params;
 
     return (
-        <EditDeckComponent id={id} />
+        <>
+            {id && <EditDeckComponent id={id} />}
+        </>
     )
 }
