@@ -1,6 +1,6 @@
 "use client"
 import React, { createContext, useContext, useState, useEffect, ReactNode, use } from "react";
-import { ICard, LocalStorageDeck, SearchCardByListRequest, SearchCardByListResponseBody, UserDeck } from "../interfaces";
+import { BoosterLimits, BoosterPack, ICard, LocalStorageDeck, SearchCardByListRequest, SearchCardByListResponseBody, UserDeck } from "../interfaces";
 import { useToast } from "@/hooks/use-toast";
 import { debounce } from "lodash";
 import { CheckCacheEndpoint, SearchCardsByListEndpoint, SearchCardsEndpoint, UpdateBulkDataEndpoint } from "../utils/pathUtils";
@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { generateId } from "@/lib/utils";
 import { useRouter } from 'next/navigation'
 import { fakerDE as faker } from '@faker-js/faker';
+import { saveAs } from "file-saver";
 
 interface SearchResponse {
     results: ICard[];
@@ -65,6 +66,9 @@ interface MtgContextType {
     activeLocalStorageDeck: LocalStorageDeck | undefined;
     setActiveLocalStorageDeck: React.Dispatch<React.SetStateAction<LocalStorageDeck | undefined>>;
     isFetchingData: boolean;
+    exportAllDecksAsJson: () => void;
+    exportDeckByIdAsJson: (id: string) => void;
+    importDecksFromJson: (file: File) => void;
 }
 
 const MtgContext = createContext<MtgContextType | undefined>(undefined);
@@ -96,8 +100,18 @@ export const MtgProvider = ({ children }: { children: ReactNode }) => {
 
     //#region General
     const addCardToDeck = (card: ICard) => {
-        card.quantity = 1;
-        setDeckData((prevDeck) => [...prevDeck, card]);
+        //check if card is already in deck
+        const existingCard = deckData.find((c) => c.id === card.id);
+        if (existingCard) {
+            updateCardQuantity(card.id, existingCard.quantity + 1);
+            return;
+        }
+        if (!existingCard) {
+            card.quantity = 1;
+            setDeckData((prevDeck) => [...prevDeck, card]);
+        }
+        //card.quantity = 1;
+        //setDeckData((prevDeck) => [...prevDeck, card]);
     };
 
     const removeCardFromDeck = (cardId: string) => {
@@ -128,6 +142,7 @@ export const MtgProvider = ({ children }: { children: ReactNode }) => {
                 setIsCreatingNewDeck(false);
 
             } else if (source === "list") {
+
                 cards = deckFromList
                     .split("\n")
                     .map((line) => line.trim())
@@ -148,7 +163,10 @@ export const MtgProvider = ({ children }: { children: ReactNode }) => {
                         };
                     })
                     .filter(Boolean) as UserDeck[];
+
+                console.log(cards)
             }
+
 
             if (cards.length === 0) {
                 console.warn("No cards to process.");
@@ -159,8 +177,7 @@ export const MtgProvider = ({ children }: { children: ReactNode }) => {
             setIsCreatingNewDeck(false);
             setIsFetchingData(true);
 
-
-            const response = await fetch("/api/search-cards-by-list", {
+            const response = await fetch(SearchCardsByListEndpoint, {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
@@ -171,6 +188,8 @@ export const MtgProvider = ({ children }: { children: ReactNode }) => {
             if (!response.ok) {
                 throw new Error("Failed to fetch cards from the backend.");
             }
+
+            console.log(response)
 
             const data: SearchCardByListResponseBody = await response.json();
             setDeckData(data.cards);
@@ -183,7 +202,6 @@ export const MtgProvider = ({ children }: { children: ReactNode }) => {
         } finally {
             setLoadingData(false);
             setIsCreatingNewDeck(false);
-
         }
     };
 
@@ -315,7 +333,6 @@ export const MtgProvider = ({ children }: { children: ReactNode }) => {
         return parsedQuery;
     };
 
-
     const fetchCards = async () => {
         setLoading(true);
         try {
@@ -389,6 +406,8 @@ export const MtgProvider = ({ children }: { children: ReactNode }) => {
 
         const savedDecks = JSON.parse(localStorage.getItem(storageKey) || "[]");
 
+        console.log(savedDecks)
+
         if (isNew) {
             const newDeck = {
                 id: generateId(),
@@ -414,11 +433,17 @@ export const MtgProvider = ({ children }: { children: ReactNode }) => {
                         ...deck,
                         name: deckName,
                         description: deckDescription,
-                        cards: deckData.map((card) => ({
-                            id: card.id,
-                            name: card.name,
-                            quantity: card.quantity,
-                        })),
+                        cards: deckData.map((card) => {
+                            if (card.quantity === 0) {
+                                return null;
+                            } else {
+                                return {
+                                    id: card.id,
+                                    name: card.name,
+                                    quantity: card.quantity,
+                                }
+                            }
+                        }),
                     };
                 }
 
@@ -430,6 +455,8 @@ export const MtgProvider = ({ children }: { children: ReactNode }) => {
 
             return activeLocalStorageDeck;
         }
+
+
 
         toast({
             title: "Deck saved! 💾",
@@ -454,6 +481,66 @@ export const MtgProvider = ({ children }: { children: ReactNode }) => {
         return decks;
     };
 
+    const exportAllDecksAsJson = () => {
+        const decksJson = JSON.stringify(savedLocalStorageDecks, null, 2);
+        const blob = new Blob([decksJson], { type: "application/json" });
+        saveAs(blob, "all-decks.json");
+    };
+
+    const exportDeckByIdAsJson = (id: string) => {
+        const deck = savedLocalStorageDecks.find((d) => d.id === id);
+        if (!deck) {
+            console.error(`Deck with ID ${id} not found.`);
+            return;
+        }
+
+        const deckJson = JSON.stringify(deck, null, 2);
+        const blob = new Blob([deckJson], { type: "application/json" });
+        saveAs(blob, `deck-${id}.json`);
+    };
+
+    const importDecksFromJson = async (file: File) => {
+        try {
+            const text = await file.text();
+            const importedDecks = JSON.parse(text);
+
+            if (!Array.isArray(importedDecks)) {
+                throw new Error("Invalid file format: Expected an array of decks.");
+            }
+
+            const validatedDecks = importedDecks.filter((deck) => {
+                return (
+                    typeof deck.id === "string" &&
+                    typeof deck.name === "string" &&
+                    typeof deck.description === "string" &&
+                    Array.isArray(deck.cards) &&
+                    deck.cards.every(
+                        (card: UserDeck) =>
+                            typeof card.id === "string" &&
+                            typeof card.name === "string" &&
+                            typeof card.quantity === "number"
+                    )
+                );
+            });
+
+            if (validatedDecks.length === 0) {
+                throw new Error("No valid decks found in the file.");
+            }
+
+            const mergedDecks = [...savedLocalStorageDecks, ...validatedDecks];
+
+            localStorage.setItem("MtgUtils-Decks", JSON.stringify(mergedDecks))
+            setSavedLocalStorageDecks(mergedDecks);
+
+            toast({
+                title: "Decks imported! 📥",
+                description: "Your decks have been imported successfully.",
+            })
+        } catch (error) {
+            console.error("Error importing decks:", error);
+        }
+    };
+
     //#endregion
 
 
@@ -469,6 +556,119 @@ export const MtgProvider = ({ children }: { children: ReactNode }) => {
     const removeCard = (id: string) => {
         setDeckData((prevDeck) => prevDeck.filter((card) => card.id !== id));
     };
+    //#endregion
+
+    //#region Booster Generator
+
+    const [boosterLimits, setBoosterLimits] = useState<BoosterLimits>({
+        transforms: 1,
+        rares: 1,
+        uncommons: 4,
+        commons: 9,
+    })
+
+    const shuffle = <T,>(array: T[]): T[] => {
+        if (!Array.isArray(array) || array.length === 0) {
+            return array;
+        }
+
+        for (let i = array.length - 1; i > 0; i--) {
+            const randomIndex = Math.floor(Math.random() * (i + 1));
+            [array[i], array[randomIndex]] = [array[randomIndex], array[i]];
+        }
+
+        return array;
+    }
+
+    const createBooster = (limits: BoosterLimits = boosterLimits): BoosterPack => {
+        const cards = new Map<string, ICard>();
+        const transforms = 0;
+        const rares = 0;
+        const uncommons = 0;
+        const commons = 0;
+
+        return {
+            cards,
+            transforms,
+            rares,
+            uncommons,
+            commons,
+            isFull: () =>
+                cards.size === Object.values(limits).reduce((a, b) => a + b, 0),
+        };
+    };
+
+    const fillBoosterCardType = (
+        booster: BoosterPack,
+        cards: ICard[],
+        type: keyof BoosterLimits,
+        limits: BoosterLimits
+    ): void => {
+        let attempts = 1;
+        while (booster[type] < limits[type] && cards.length >= limits[type]) {
+            if (attempts > cards.length) {
+                console.warn(`No more cards available to fill booster (${type})`);
+                break;
+            }
+
+            const card = cards.shift();
+            if (!card) break;
+
+            if (!booster.cards.has(card.id)) {
+                booster[type]++;
+                booster.cards.set(card.id, card);
+            } else {
+                cards.push(card); // Reembaralhar
+                attempts++;
+            }
+        }
+    };
+
+    const createBoosterPack = (
+        transforms: ICard[],
+        rares: ICard[],
+        uncommons: ICard[],
+        commons: ICard[],
+        limits: BoosterLimits = boosterLimits
+    ): BoosterPack => {
+        const booster = createBooster(limits);
+
+        fillBoosterCardType(booster, transforms, "transforms", limits);
+        fillBoosterCardType(booster, rares, "rares", limits);
+        fillBoosterCardType(booster, uncommons, "uncommons", limits);
+        fillBoosterCardType(booster, commons, "commons", limits);
+
+        return booster;
+    };
+
+    const generateBoosters = (
+        allCards: ICard[],
+        limits: BoosterLimits = boosterLimits
+    ): BoosterPack[] => {
+        const shuffledCards = shuffle(allCards);
+        const transforms = shuffledCards.filter((card) => card.layout === "transform");
+        const rares = shuffledCards.filter((card) => card.rarity === "rare" || card.rarity === "mythic");
+        const uncommons = shuffledCards.filter((card) => card.rarity === "uncommon");
+        const commons = shuffledCards.filter((card) => card.rarity === "common");
+
+        const boosters: BoosterPack[] = [];
+
+        while (
+            transforms.length >= limits.transforms &&
+            rares.length >= limits.rares &&
+            uncommons.length >= limits.uncommons &&
+            commons.length >= limits.commons
+        ) {
+            boosters.push(createBoosterPack(transforms, rares, uncommons, commons, limits));
+        }
+
+        return boosters;
+    };
+
+
+
+
+
     //#endregion
 
     useEffect(() => {
@@ -512,6 +712,9 @@ export const MtgProvider = ({ children }: { children: ReactNode }) => {
                 activeLocalStorageDeck,
                 setActiveLocalStorageDeck,
                 isFetchingData,
+                exportAllDecksAsJson,
+                exportDeckByIdAsJson,
+                importDecksFromJson
             }}
         >
             {children}

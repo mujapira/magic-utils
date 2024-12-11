@@ -47,7 +47,7 @@ export function UtilityBar() {
     const [isOpen, setIsOpen] = useState(false)
 
     return (
-        <div className="w-full flex flex-col gap-4 relative h-full">
+        <div className="w-full flex flex-col gap-4 relative">
             <div className="flex flex-col w-full gap-4">
                 <span className="text-center font-semibold">
                     Utility bar

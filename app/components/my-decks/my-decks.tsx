@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/dialog"
 import { useMtg } from "@/app/contexts/mtgContext"
 import { Button } from "@/components/ui/button";
-import { ArrowBigRightDashIcon, Banana, EllipsisVertical, HardDriveDownload, Info, PenSquareIcon, PlusCircle, Trash } from "lucide-react";
+import { ArrowBigRightDashIcon, Banana, EllipsisVertical, HardDriveDownload, Import, Info, PenSquareIcon, PlusCircle, Share, Trash } from "lucide-react";
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -22,7 +22,7 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 import { CardComponent } from "../card-component";
@@ -37,6 +37,8 @@ import {
 } from "@/components/ui/tooltip"
 import { UtilityBar } from "../utility-bar";
 import Loading from "@/app/loading";
+import { SidebarProvider } from "@/components/ui/sidebar";
+import { RightSidebar } from "../layout/right-sidebar";
 
 export type DialogOption = "import" | "scratch"
 
@@ -59,15 +61,30 @@ export function MyDeckComponent() {
         totalResults,
         clearData,
         deleteDeck,
-        isFetchingData
+        isFetchingData,
+        exportAllDecksAsJson,
+        exportDeckByIdAsJson,
+        importDecksFromJson
     } = useMtg();
 
     const [deckName, setDeckName] = useState("");
     const [deckDescription, setDeckDescription] = useState("");
-
+    const fileInputRef = useRef<HTMLInputElement | null>(null);
     const { toast } = useToast();
 
+    const handleButtonClick = () => {
+        fileInputRef.current?.click();
+    };
+
+
     const [dialogOption, setDialogOption] = useState<DialogOption | null>(null);
+
+    const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (file) {
+            importDecksFromJson(file);
+        }
+    };
 
     const handleStartNewDeck = async () => {
 
@@ -110,10 +127,28 @@ export function MyDeckComponent() {
                 <>
                     {!isCardSelectionStarted && (
                         <>
-                            <div>
+                            <div className="flex justify-between">
                                 <Button onClick={() => setIsCreatingNewDeck(true)}>
                                     Create new deck <PlusCircle />
                                 </Button>
+
+
+                                <div className="flex gap-4">
+                                    <Button onClick={handleButtonClick} className="">
+                                        Import Decks <Import />
+                                    </Button>
+                                    <Input
+                                        ref={fileInputRef}
+                                        type="file"
+                                        accept="application/json"
+                                        className="hidden"
+                                        onChange={handleFileUpload}
+                                    />
+
+                                    <Button onClick={() => exportAllDecksAsJson()}>
+                                        Export Decks <Share />
+                                    </Button>
+                                </div>
                             </div>
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                 {savedLocalStorageDecks.map((deck) => (
@@ -154,7 +189,6 @@ export function MyDeckComponent() {
                                                 <span>
                                                     Manage Deck
                                                 </span>
-                                                <Banana />
                                             </Button>
                                         </Link>
                                     </div>

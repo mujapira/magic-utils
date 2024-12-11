@@ -14,6 +14,8 @@ import {
     ResizablePanelGroup,
 } from "@/components/ui/resizable"
 import { UtilityBar } from "../utility-bar"
+import { SidebarProvider } from "@/components/ui/sidebar"
+import { RightSidebar } from "../layout/right-sidebar"
 
 export default function EditDeckComponent({ id }: { id: string }) {
     const { handleGetDeckCards, loadingData, deckData, activeLocalStorageDeck } = useMtg();
@@ -51,28 +53,17 @@ export default function EditDeckComponent({ id }: { id: string }) {
             {loadingData && <LoadingCards />}
 
             {!loadingData &&
-                <ResizablePanelGroup
-                    direction="horizontal"
-                    className="h-full rounded-lg border w-full"
-                >
-                    <ResizablePanel defaultSize={28} className="flex items-start w-full p-4 min-w-56">
-                        <UtilityBar />
-                    </ResizablePanel>
-                    <ResizableHandle withHandle />
-                    <ResizablePanel defaultSize={75}>
-                        <div id="list" className="grid w-full grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 p-2 overflow-auto flex-1">
-                            {deckData.map((card) => (
-                                <Fragment key={card.id}>
-                                    {card.quantity > 0 && (
-                                        <div className="flex-grow flex-shrink-0 ">
-                                            <CardComponent card={card} />
-                                        </div>
-                                    )}
-                                </Fragment>
-                            ))}
-                        </div>
-                    </ResizablePanel>
-                </ResizablePanelGroup>
+                <div id="list" className="grid w-full grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 p-2 overflow-auto flex-1">
+                    {deckData.map((card, i) => (
+                        <Fragment key={card.id + i + "-" + Math.random()}>
+                            {card.quantity > 0 && (
+                                <div className="flex-grow flex-shrink-0 ">
+                                    <CardComponent card={card} />
+                                </div>
+                            )}
+                        </Fragment>
+                    ))}
+                </div>
             }
         </motion.div >
     )

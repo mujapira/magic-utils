@@ -135,3 +135,21 @@ export interface SearchCardByListRequestBody {
 export interface SearchCardByListResponseBody {
   cards: ICard[]
 }
+
+
+
+export interface BoosterLimits {
+  transforms: number
+  rares: number
+  uncommons: number
+  commons: number
+}
+
+export interface BoosterPack {
+  cards: Map<string, ICard>
+  transforms: number
+  rares: number
+  uncommons: number
+  commons: number
+  isFull: () => boolean
+}

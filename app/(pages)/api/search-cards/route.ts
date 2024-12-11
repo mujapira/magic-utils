@@ -95,6 +95,7 @@ export const GET = async (req: Request): Promise<NextResponse> => {
       ? card.layout === normalizeString(params.layout)
       : true
 
+    // TODO ajuste para commons e uncommons primeiro valida =, se não achar valida o includes
     const matchesRarity = params.rarity
       ? card.rarity.includes(normalizeString(params.rarity))
       : true

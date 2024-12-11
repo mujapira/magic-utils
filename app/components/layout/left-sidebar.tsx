@@ -12,6 +12,7 @@ import {
     SidebarMenu,
     SidebarMenuButton,
     SidebarMenuItem,
+    SidebarRail,
 } from "@/components/ui/sidebar"
 import { LogOut } from "lucide-react"
 import Link from "next/link"
@@ -29,7 +30,7 @@ export function LeftSidebar() {
     }
 
     return (
-        <Sidebar>
+        <Sidebar side='left' variant='sidebar' collapsible='offcanvas'>
             <motion.div
                 className="flex flex-1 flex-col"
                 initial={{ opacity: 0, x: -50 }}
@@ -49,7 +50,7 @@ export function LeftSidebar() {
                             <SidebarMenu>
                                 {pathUtils.map((item, index) => (
                                     <SidebarMenuItem key={item.title}>
-                                        <SidebarMenuButton asChild>
+                                        <SidebarMenuButton asChild name="left">
                                             <Button
                                                 className="flex duration-1000 items-center justify-start w-full"
                                                 variant={isRouteActive(item.route) ? "default" : "ghost"}>
@@ -71,7 +72,7 @@ export function LeftSidebar() {
                         <SidebarGroupContent>
                             <SidebarMenu>
                                 <SidebarMenuItem>
-                                    <SidebarMenuButton asChild>
+                                    <SidebarMenuButton asChild name="left">
                                         <a href="/logout">
                                             <LogOut />
                                             <span>Logout</span>
@@ -83,6 +84,7 @@ export function LeftSidebar() {
                     </SidebarGroup>
                 </SidebarFooter>
             </motion.div>
+   
         </Sidebar>
     )
 }
