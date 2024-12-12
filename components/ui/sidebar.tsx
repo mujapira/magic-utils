@@ -3,7 +3,7 @@
 import * as React from "react"
 import { Slot } from "@radix-ui/react-slot"
 import { VariantProps, cva } from "class-variance-authority"
-import { PanelLeft } from "lucide-react"
+import { Edit, PanelLeft, Search } from "lucide-react"
 
 import { useIsMobile } from "@/hooks/use-mobile"
 import { cn } from "@/lib/utils"
@@ -34,6 +34,8 @@ type SidebarState = {
   setOpenMobile: (open: boolean) => void
   isMobile: boolean
   toggleSidebar: () => void
+  width: string
+  widthMobile: string
 }
 
 type SidebarContext = {
@@ -63,6 +65,10 @@ const SidebarProvider = React.forwardRef<
     openRight?: boolean;
     onOpenChangeLeft?: (open: boolean) => void;
     onOpenChangeRight?: (open: boolean) => void;
+    widthLeft?: string;
+    widthRight?: string;
+    widthMobileLeft?: string;
+    widthMobileRight?: string;
   }
 >(
   (
@@ -76,6 +82,10 @@ const SidebarProvider = React.forwardRef<
       className,
       style,
       children,
+      widthLeft = '16rem',
+      widthRight = '24rem',
+      widthMobileLeft = '18rem',
+      widthMobileRight = '18rem',
       ...props
     },
     ref
@@ -136,6 +146,8 @@ const SidebarProvider = React.forwardRef<
           openMobile: openMobileLeft,
           setOpenMobile: setOpenMobileLeft,
           isMobile,
+          width: widthLeft,
+          widthMobile: widthMobileLeft,
         },
         rightSidebar: {
           open: openRight,
@@ -145,10 +157,24 @@ const SidebarProvider = React.forwardRef<
           openMobile: openMobileRight,
           setOpenMobile: setOpenMobileRight,
           isMobile,
+          width: widthRight,
+          widthMobile: widthMobileRight,
         },
         isMobile,
       }),
-      [openLeft, setOpenLeft, toggleSidebarLeft, openRight, setOpenRight, toggleSidebarRight, isMobile]
+      [
+        openLeft,
+        setOpenLeft,
+        toggleSidebarLeft,
+        openRight,
+        setOpenRight,
+        toggleSidebarRight,
+        isMobile,
+        widthLeft,
+        widthRight,
+        widthMobileLeft,
+        widthMobileRight,
+      ]
     );
 
     return (
@@ -198,7 +224,7 @@ const Sidebar = React.forwardRef<
     },
     ref
   ) => {
-    const { isMobile, state, openMobile, setOpenMobile } = useSidebar(side);
+    const { isMobile, state, openMobile, setOpenMobile, width, widthMobile } = useSidebar(side);
 
     if (collapsible === 'none') {
       return (
@@ -207,6 +233,7 @@ const Sidebar = React.forwardRef<
             'flex h-full w-[--sidebar-width] flex-col bg-sidebar text-sidebar-foreground',
             className
           )}
+          style={{ '--sidebar-width': width } as React.CSSProperties}
           ref={ref}
           {...props}
         >
@@ -222,11 +249,7 @@ const Sidebar = React.forwardRef<
             data-sidebar='sidebar'
             data-mobile='true'
             className='w-[--sidebar-width] bg-sidebar p-0 text-sidebar-foreground [&>button]:hidden'
-            style={
-              {
-                '--sidebar-width': SIDEBAR_WIDTH_MOBILE,
-              } as React.CSSProperties
-            }
+            style={{ '--sidebar-width': widthMobile } as React.CSSProperties}
             side={side}
           >
             <div className='flex h-full w-full flex-col'>{children}</div>
@@ -243,6 +266,7 @@ const Sidebar = React.forwardRef<
         data-collapsible={state === 'collapsed' ? collapsible : ''}
         data-variant={variant}
         data-side={side}
+        style={{ '--sidebar-width': width } as React.CSSProperties}
       >
         <div
           className={cn(
@@ -278,31 +302,52 @@ const Sidebar = React.forwardRef<
     );
   }
 );
-
 Sidebar.displayName = 'Sidebar';
+
 const SidebarTrigger = React.forwardRef<
   React.ElementRef<typeof Button>,
   React.ComponentProps<typeof Button> & { name: 'left' | 'right' }
 >(({ className, onClick, name, ...props }, ref) => {
   const { toggleSidebar } = useSidebar(name);
 
-  return (
-    <Button
-      ref={ref}
-      data-sidebar='trigger'
-      variant='ghost'
-      size='icon'
-      className={cn('h-7 w-7', className)}
-      onClick={(event) => {
-        onClick?.(event);
-        toggleSidebar();
-      }}
-      {...props}
-    >
-      <PanelLeft />
-      <span className='sr-only'>Toggle {name} Sidebar</span>
-    </Button>
-  );
+  if (name === 'right') {
+    return (
+      <Button
+        ref={ref}
+        data-sidebar='trigger'
+        variant='ghost'
+        className={cn('', className)}
+        onClick={(event) => {
+          onClick?.(event);
+          toggleSidebar();
+        }}
+        {...props}
+      >
+        <Edit />
+        <span className='sr-only'>Toggle {name} Search Sidebar</span>
+        <span className=''>Edit Deck</span>
+      </Button>
+    );
+  }
+  if (name === 'left') {
+    return (
+      <Button
+        ref={ref}
+        data-sidebar='trigger'
+        variant='ghost'
+        size='icon'
+        className={cn('h-7 w-7', className)}
+        onClick={(event) => {
+          onClick?.(event);
+          toggleSidebar();
+        }}
+        {...props}
+      >
+        <PanelLeft />
+        <span className='sr-only'>Toggle {name} Sidebar</span>
+      </Button>
+    );
+  }
 });
 SidebarTrigger.displayName = 'SidebarTrigger';
 

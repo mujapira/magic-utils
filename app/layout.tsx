@@ -60,7 +60,7 @@ export default function RootLayout({
           <ToastProvider>
             <MtgProvider>
               <TooltipProvider>
-                <SidebarProvider>
+                <SidebarProvider defaultOpenLeft defaultOpenRight={false}>
                   <LeftSidebar />
                   <div className="flex flex-col w-full items-center justify-between
               min-h-screen"

@@ -14,7 +14,7 @@ import {
     ResizablePanelGroup,
 } from "@/components/ui/resizable"
 import { UtilityBar } from "../utility-bar"
-import { SidebarProvider } from "@/components/ui/sidebar"
+import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar"
 import { RightSidebar } from "../layout/right-sidebar"
 
 export default function EditDeckComponent({ id }: { id: string }) {
@@ -53,16 +53,21 @@ export default function EditDeckComponent({ id }: { id: string }) {
             {loadingData && <LoadingCards />}
 
             {!loadingData &&
-                <div id="list" className="grid w-full grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 p-2 overflow-auto flex-1">
-                    {deckData.map((card, i) => (
-                        <Fragment key={card.id + i + "-" + Math.random()}>
-                            {card.quantity > 0 && (
-                                <div className="flex-grow flex-shrink-0 ">
-                                    <CardComponent card={card} />
-                                </div>
-                            )}
-                        </Fragment>
-                    ))}
+                <div className="flex flex-col w-full">
+                    <div>
+                        <SidebarTrigger name='right' className='sidebar-trigger-right' />
+                    </div>
+                    <div id="list" className="grid w-full grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 p-2 overflow-auto flex-1">
+                        {deckData.map((card, i) => (
+                            <Fragment key={card.id + i + "-" + Math.random()}>
+                                {card.quantity > 0 && (
+                                    <div className="flex-grow flex-shrink-0 ">
+                                        <CardComponent card={card} />
+                                    </div>
+                                )}
+                            </Fragment>
+                        ))}
+                    </div>
                 </div>
             }
         </motion.div >
