@@ -5,7 +5,7 @@ on:
 
 jobs:
   ssh-test:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
 
     steps:
       - name: Checkout
